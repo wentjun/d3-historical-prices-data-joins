@@ -1,0 +1,92 @@
+body {
+  background: #00151c;
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+}
+
+#chart {
+  background: #0e3040;
+  color: #67809f;
+  width: 100%;
+  height: 100%;
+}
+
+.tooltip {
+  position: absolute;
+  text-align: center;
+  width: 150px;
+  height: 38px;
+  padding: 2px;
+  border-radius: 5px;
+  font: 12px sans-serif;
+  background: lightsteelblue;
+  pointer-events: auto;
+}
+
+.tooltip:after {
+  box-sizing: border-box;
+  display: inline;
+  font-size: 10px;
+  width: 100%;
+  line-height: 0;
+  color: lightsteelblue;
+  content: "\25BC";
+  position: absolute;
+  text-align: center;
+  top: 100%;
+  left: 0;
+}
+
+.flex-container {
+  padding: 0;
+  margin: 0;
+  list-style: none;
+
+  display: -webkit-box;
+  display: -moz-box;
+  display: -ms-flexbox;
+  display: -webkit-flex;
+  display: flex;
+
+  -webkit-flex-flow: row nowrap;
+  justify-content: flex-start;
+  align-items: center;
+}
+
+.flex-item {
+  color: white;
+  text-align: left;
+  font-size: 0.9em;
+  letter-spacing: 0.01em;
+}
+
+.flex-item:first-child > div {
+  padding-bottom: 1em;
+}
+
+a {
+  color: #67809f;
+}
+
+.bars.up-day path {
+  stroke: #03a678;
+}
+
+.bars.down-day path {
+  stroke: #c0392b;
+}
+
+.bars.up-day rect {
+  fill: #03a678;
+}
+
+.bars.down-day rect {
+  fill: #c0392b;
+}
+
+@media screen and (max-width: 768px) {
+  .flex-container {
+    -webkit-flex-flow: column nowrap;
+    justify-content: flex-start;
+    align-items: center;
+  }
+}

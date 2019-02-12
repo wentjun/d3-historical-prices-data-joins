@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="./styles.css" type="text/css" media="screen" charset="utf-8">
+<script src="https://d3js.org/d3.v5.min.js"></script>
+</head>
+<body>
+  <div class="flex-container">
+    <div class="flex-item">
+      <div>
+        <select id="select-stock">
+          <option selected="selected" value="vig">Vanguard Dividend Appreciation ETF (VIG)</option>
+          <option value="vti">Vanguard Total Stock Market ETF (VTI)</option>
+          <option value="vea">Vanguard FTSE Developed Markets ETF (VEA)</option>
+        </select>
+      </div>
+      <div>
+        <div class="item">
+          <input type="checkbox" id="close" checked>
+          <label for="close">Close Price</label>
+        </div>
+        <div class="item">
+          <input type="checkbox" id="moving-average" checked>
+          <label for="moving-average">Moving Average (50 Periods)</label>
+        </div>
+        <div class="item">
+          <input type="checkbox" id="bollinger-bands">
+          <label for="bollinger-bands">Bollinger Bands (20 Periods)</label>
+        </div>
+        <div class="item">
+          <input type="checkbox" id="ohlc">
+          <label for="ohlc">OHLC</label>
+        </div>
+        <div class="item">
+          <input type="checkbox" id="candlesticks">
+          <label for="candlesticks">Candlesticks</label>
+        </div>
+      </div>
+      <p>Historical price charts of various Vanguard ETFs (VIG, VTI, and VEA) for the second half of 2018, built with D3.js. Prices are displayed in United States Dollars(USD). Feel free to check out the source code at <a target="_blank" href="https://github.com/wentjun/d3-historical-prices-data-joins">GitHub</a>.</p>
+    </div>
+    <div class="flex-item">
+      <div id="chart"></div>
+    </div>
+  </div>
+  <script src="chart.js"></script>
+  <script>
+  chart = new HistoricalPriceChart();
+  </script>
+
+</body>
