@@ -7,6 +7,7 @@ class HistoricalPriceChart {
     this.yscale;
     this.zoom;
     this.currentData = [];
+    this.dividendData = [];
     this.bollingerBandsData = undefined;
     this.movingAverageData = undefined;
     this.loadData('vig').then(data => {
@@ -210,7 +211,7 @@ class HistoricalPriceChart {
       .style('stroke-dasharray', '3 3');
 
     // get VIG dividend data for year of 2018
-    const dividendData = data['dividends'].filter(row => {
+    this.dividendData = data['dividends'].filter(row => {
       if (row['date']) {
         return (
           row['date'] >= thisYearStartDate && row['date'] < nextYearStartDate
@@ -226,7 +227,7 @@ class HistoricalPriceChart {
       .attr('height', this.height);
 
     // generates the rest of the graph
-    this.updateChart(dividendData);
+    this.updateChart();
 
     /* Handle zoom and pan */
     this.zoom = d3
@@ -457,7 +458,7 @@ class HistoricalPriceChart {
       this.yScale.domain([yMin - 5, yMax + 4]);
 
       // get dividend data for current dataset
-      const dividendData = response['dividends'].filter(row => {
+      this.dividendData = response['dividends'].filter(row => {
         if (row['date']) {
           return (
             row['date'] >= thisYearStartDate && row['date'] < nextYearStartDate
@@ -465,16 +466,202 @@ class HistoricalPriceChart {
         }
       });
 
-      this.updateChart(dividendData);
+      this.updateChart();
     });
   }
 
-  updateChart(dividendData) {
-    /* Update the axis */
+  updateChart() {
+    /* Update the axes */
     d3.select('.xAxis').call(d3.axisBottom(this.xScale));
     d3.select('.yAxis').call(d3.axisRight(this.yScale));
 
-    /* Update the volume series */
+    /* updating of crosshair */
+    this.updateCrosshairProperties();
+
+    /* Update the volume series bar chart */
+    this.renderVolumeBarCharts();
+
+    /* Update dividend indicators */
+    this.renderDividendIndicators();
+
+    /* Update the price chart */
+    const closeCheckboxToggle = document.querySelector('input[id=close]')
+      .checked;
+    this.toggleClose(closeCheckboxToggle);
+
+    /* Update the moving average line */
+    const movingAverageCheckboxToggle = document.querySelector(
+      'input[id=moving-average]'
+    ).checked;
+    this.toggleMovingAverage(movingAverageCheckboxToggle);
+
+    /* Display OHLC chart */
+    const checkboxToggle = document.querySelector('input[id=ohlc]').checked;
+    this.toggleOHLC(checkboxToggle);
+
+    /* Display Candlesticks chart */
+    const candlesticksToggle = document.querySelector('input[id=candlesticks]')
+      .checked;
+    this.toggleCandlesticks(candlesticksToggle);
+
+    /* Display Bollinger Bands */
+    const toggleBollingerBands = document.querySelector(
+      'input[id=bollinger-bands]'
+    ).checked;
+    this.toggleBollingerBands(toggleBollingerBands);
+  }
+
+  /* Mouseover function to generate crosshair */
+  generateCrosshair(current) {
+    //returns corresponding value from the domain
+    const focus = d3.select('.focus');
+    const bisectDate = d3.bisector(d => d.date).left;
+    const correspondingDate = this.xScale.invert(d3.mouse(current)[0]);
+    //gets insertion point
+    const i = bisectDate(this.currentData, correspondingDate, 1);
+    const d0 = this.currentData[i - 1];
+    const d1 = this.currentData[i];
+    const currentPoint =
+      correspondingDate - d0['date'] > d1['date'] - correspondingDate ? d1 : d0;
+    focus.attr(
+      'transform',
+      `translate(${this.xScale(currentPoint['date'])}, ${this.yScale(
+        currentPoint['close']
+      )})`
+    );
+
+    focus
+      .select('line.x')
+      .attr('x1', 0)
+      .attr('x2', this.width - this.xScale(currentPoint['date']))
+      .attr('y1', 0)
+      .attr('y2', 0);
+
+    focus
+      .select('line.y')
+      .attr('x1', 0)
+      .attr('x2', 0)
+      .attr('y1', 0)
+      .attr('y2', this.height - this.yScale(currentPoint['close']));
+
+    // updates the legend to display the date, open, close, high, low, and volume and selected mouseover area
+    this.updateLegends(currentPoint);
+    // secondary legends showing moving average and bollinger bands values
+    this.updateSecondaryLegends(currentPoint['date']);
+  }
+
+  updateLegends(currentPoint) {
+    d3.selectAll('.primary-legend').remove();
+    const legendKeys = Object.keys(currentPoint);
+    const lineLegendSelect = d3
+      .select('#chart')
+      .select('g')
+      .selectAll('.primary-legend')
+      .data(legendKeys);
+    lineLegendSelect.join(
+      enter =>
+        enter
+          .append('g')
+          .attr('class', 'primary-legend')
+          .attr('transform', (d, i) => `translate(0, ${i * 20})`)
+          .append('text')
+          .text(d => {
+            if (d === 'date') {
+              return `${d}: ${currentPoint[d].toLocaleDateString()}`;
+            } else if (
+              d === 'high' ||
+              d === 'low' ||
+              d === 'open' ||
+              d === 'close'
+            ) {
+              return `${d}: ${currentPoint[d].toFixed(2)}`;
+            } else {
+              return `${d}: ${currentPoint[d]}`;
+            }
+          })
+          .style('font-size', '0.8em')
+          .style('fill', 'white')
+          .attr('transform', 'translate(15,9)') //align texts with boxes*/
+    );
+  }
+
+  updateSecondaryLegends(currentDate) {
+    const secondaryLegend = {};
+    if (this.movingAverageData) {
+      const currentPoint = this.movingAverageData.filter(
+        dataPoint => dataPoint['date'] === currentDate
+      )[0];
+      secondaryLegend['movingAverage'] = currentPoint;
+    }
+    if (this.bollingerBandsData) {
+      const currentBollingerBandsPoint = this.bollingerBandsData.filter(
+        dataPoint => dataPoint['date'] === currentDate
+      )[0];
+      secondaryLegend['bollingerBands'] = currentBollingerBandsPoint;
+    }
+    const secondaryLegendKeys = Object.keys(secondaryLegend);
+
+    d3.selectAll('.secondary-legend').remove();
+    if (secondaryLegendKeys.length > 0) {
+      const secondaryLegendSelect = d3
+        .select('#chart')
+        .select('g')
+        .selectAll('.secondary-legend')
+        .data(secondaryLegendKeys);
+      secondaryLegendSelect.join(
+        enter =>
+          enter
+            .append('g')
+            .attr('class', 'secondary-legend')
+            .attr('transform', (d, i) => `translate(0, ${i * 20})`)
+            .append('text')
+            .text(d => {
+              if (d === 'movingAverage') {
+                return `Moving Average (50): ${secondaryLegend[d][
+                  'average'
+                ].toFixed(2)}`;
+              } else if (d === 'bollingerBands') {
+                return `Bollinger Bands (20, 2.0, MA): ${secondaryLegend[d][
+                  'lowerBand'
+                ].toFixed(2)} - ${secondaryLegend[d]['average'].toFixed(
+                  2
+                )} - ${secondaryLegend[d]['upperBand'].toFixed(2)}`;
+              }
+            })
+            .style('font-size', '0.8em')
+            .style('fill', 'white')
+            .attr('transform', 'translate(150,9)'),
+
+        exit => exit.remove()
+      );
+    }
+  }
+
+  updateCrosshairProperties() {
+    // select the existing crosshair, and bind new data
+    const overlay = d3.select('.overlay');
+    const focus = d3.select('.focus');
+
+    // remove old crosshair
+    overlay.exit().remove();
+
+    // enter, and update the attributes
+    overlay
+      .enter()
+      .append('g')
+      .attr('class', 'focus')
+      .style('display', 'none');
+
+    overlay
+      .attr('class', 'overlay')
+      .attr('width', this.width)
+      .attr('height', this.height)
+      .on('mouseover', () => focus.style('display', null))
+      .on('mouseout', () => focus.style('display', 'none'))
+      .on('mousemove', (d, i, nodes) => this.generateCrosshair(nodes[i]));
+  }
+
+  renderVolumeBarCharts() {
     const chart = d3.select('#chart').select('g');
     const yMinVolume = d3.min(this.currentData, d => Math.min(d['volume']));
     const yMaxVolume = d3.max(this.currentData, d => Math.max(d['volume']));
@@ -490,7 +677,7 @@ class HistoricalPriceChart {
       .range([this.height, this.height * (3 / 4)]);
     //d3.select('#leftAxis').call(d3.axisLeft(yVolumeScale));
 
-    //select, followed by updating data join
+    //select, followed by join
     const bars = d3
       .select('#volume-series')
       .selectAll('.vol')
@@ -534,30 +721,9 @@ class HistoricalPriceChart {
           .attr('width', 1)
           .attr('height', d => this.height - yVolumeScale(d['volume']))
     );
+  }
 
-    /* updating of crosshair */
-    // select the existing crosshair, and bind new data
-    const overlay = d3.select('.overlay');
-    const focus = d3.select('.focus');
-
-    // remove old crosshair
-    overlay.exit().remove();
-
-    // enter, and update the attributes
-    overlay
-      .enter()
-      .append('g')
-      .attr('class', 'focus')
-      .style('display', 'none');
-
-    overlay
-      .attr('class', 'overlay')
-      .attr('width', this.width)
-      .attr('height', this.height)
-      .on('mouseover', () => focus.style('display', null))
-      .on('mouseout', () => focus.style('display', 'none'))
-      .on('mousemove', (d, i, nodes) => this.generateCrosshair(nodes[i]));
-
+  renderDividendIndicators() {
     /* Updating of dividends */
     // group dividend symbols, and with clip-path attribute
     d3.select('#chart')
@@ -570,7 +736,7 @@ class HistoricalPriceChart {
     const dividendSelect = d3
       .select('#dividends')
       .selectAll('.dividend-group')
-      .data(dividendData);
+      .data(this.dividendData);
 
     const dividendTooltip = d3
       .select('body')
@@ -640,153 +806,6 @@ class HistoricalPriceChart {
             (d, i) => `translate(${this.xScale(d['date'])},${this.height - 80})`
           )
     );
-
-    /* Update the price chart */
-    const closeCheckboxToggle = document.querySelector('input[id=close]')
-      .checked;
-    this.toggleClose(closeCheckboxToggle);
-
-    /* Update the moving average line */
-    const movingAverageCheckboxToggle = document.querySelector(
-      'input[id=moving-average]'
-    ).checked;
-    this.toggleMovingAverage(movingAverageCheckboxToggle);
-
-    /* Display OHLC chart */
-    const checkboxToggle = document.querySelector('input[id=ohlc]').checked;
-    this.toggleOHLC(checkboxToggle);
-
-    /* Display Candlesticks chart */
-    const candlesticksToggle = document.querySelector('input[id=candlesticks]')
-      .checked;
-    this.toggleCandlesticks(candlesticksToggle);
-
-    /* Display Candlesticks chart */
-    //const candlesticksToggle = document.querySelector('input[id=candlesticks]').checked;
-    const toggleBollingerBands = document.querySelector(
-      'input[id=bollinger-bands]'
-    ).checked;
-    this.toggleBollingerBands(toggleBollingerBands);
-  }
-
-  /* Mouseover function to generate crosshair */
-  generateCrosshair(current) {
-    //returns corresponding value from the domain
-    const focus = d3.select('.focus');
-    const bisectDate = d3.bisector(d => d.date).left;
-    const correspondingDate = this.xScale.invert(d3.mouse(current)[0]);
-    //gets insertion point
-    const i = bisectDate(this.currentData, correspondingDate, 1);
-    const d0 = this.currentData[i - 1];
-    const d1 = this.currentData[i];
-    const currentPoint =
-      correspondingDate - d0['date'] > d1['date'] - correspondingDate ? d1 : d0;
-    focus.attr(
-      'transform',
-      `translate(${this.xScale(currentPoint['date'])}, ${this.yScale(
-        currentPoint['close']
-      )})`
-    );
-
-    focus
-      .select('line.x')
-      .attr('x1', 0)
-      .attr('x2', this.width - this.xScale(currentPoint['date']))
-      .attr('y1', 0)
-      .attr('y2', 0);
-
-    focus
-      .select('line.y')
-      .attr('x1', 0)
-      .attr('x2', 0)
-      .attr('y1', 0)
-      .attr('y2', this.height - this.yScale(currentPoint['close']));
-
-    // updates the legend to display the date, open, close, high, low, and volume and selected mouseover area
-    this.updateLegends(currentPoint);
-    this.updateSecondaryLegends(currentPoint['date']);
-  }
-
-  updateLegends(currentPoint) {
-    d3.selectAll('.primary-legend').remove();
-
-    const legendKeys = Object.keys(currentPoint);
-    const lineLegend = d3
-      .select('#chart')
-      .select('g')
-      .selectAll('.primary-legend')
-      .data(legendKeys)
-      .enter()
-      .append('g')
-      .attr('class', 'primary-legend')
-      .attr('transform', (d, i) => `translate(0, ${i * 20})`);
-    lineLegend
-      .append('text')
-      .text(d => {
-        if (d === 'date') {
-          return `${d}: ${currentPoint[d].toLocaleDateString()}`;
-        } else if (
-          d === 'high' ||
-          d === 'low' ||
-          d === 'open' ||
-          d === 'close'
-        ) {
-          return `${d}: ${currentPoint[d].toFixed(2)}`;
-        } else {
-          return `${d}: ${currentPoint[d]}`;
-        }
-      })
-      .style('font-size', '0.8em')
-      .style('fill', 'white')
-      .attr('transform', 'translate(15,9)'); //align texts with boxes
-  }
-
-  updateSecondaryLegends(currentDate) {
-    const secondaryLegend = {};
-    if (this.movingAverageData) {
-      const currentPoint = this.movingAverageData.filter(
-        dataPoint => dataPoint['date'] === currentDate
-      )[0];
-      secondaryLegend['movingAverage'] = currentPoint;
-    }
-    if (this.bollingerBandsData) {
-      const currentBollingerBandsPoint = this.bollingerBandsData.filter(
-        dataPoint => dataPoint['date'] === currentDate
-      )[0];
-      secondaryLegend['bollingerBands'] = currentBollingerBandsPoint;
-    }
-    const secondaryLegendKeys = Object.keys(secondaryLegend);
-    d3.selectAll('.secondary-legend').remove();
-
-    if (secondaryLegendKeys.length > 0) {
-      const bollingerBandsLegend = d3
-        .select('#chart')
-        .select('g')
-        .selectAll('.secondary-legend')
-        .data(secondaryLegendKeys)
-        .enter()
-        .append('g')
-        .attr('class', 'secondary-legend')
-        .attr('transform', (d, i) => `translate(0, ${i * 20})`);
-      bollingerBandsLegend
-        .append('text')
-        .text(d => {
-          if (d === 'movingAverage') {
-            return `Moving Average (50): ${secondaryLegend[d][
-              'average'
-            ].toFixed(2)}`;
-          } else if (d === 'bollingerBands') {
-            return `Bollinger Bands (20, 2.0, MA): ${secondaryLegend[d][
-              'lowerBand'
-            ].toFixed(2)} - ${secondaryLegend[d]['average'].toFixed(
-              2
-            )} - ${secondaryLegend[d]['upperBand'].toFixed(2)}`;
-          }
-        })
-        .style('font-size', '0.8em')
-        .style('fill', 'white')
-        .attr('transform', 'translate(150,9)');
-    }
   }
 
   toggleClose(value) {
