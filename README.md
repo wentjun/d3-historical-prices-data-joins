@@ -8,4 +8,5 @@
 
 References:
 <a href="https://github.com/wentjun/d3-historical-prices">Main repository</a>
+
 This repository is an extension of a <a href="https://medium.freecodecamp.org/how-to-build-historical-price-charts-with-d3-js-72214aaf6ba3" target="_blank">previous project</a>.

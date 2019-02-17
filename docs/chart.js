@@ -226,6 +226,17 @@ class HistoricalPriceChart {
       .attr('width', this.width)
       .attr('height', this.height);
 
+    // group volume series bar charts, and with clip-path attribute
+    svg
+      .append('g')
+      .attr('id', 'volume-series')
+      .attr('clip-path', 'url(#clip)');
+
+    // group dividend symbols, and with clip-path attribute
+    svg
+      .append('g')
+      .attr('id', 'dividends')
+      .attr('clip-path', 'url(#clip)');
     // generates the rest of the graph
     this.updateChart();
 
@@ -666,11 +677,6 @@ class HistoricalPriceChart {
     const yMinVolume = d3.min(this.currentData, d => Math.min(d['volume']));
     const yMaxVolume = d3.max(this.currentData, d => Math.max(d['volume']));
 
-    chart
-      .append('g')
-      .attr('id', 'volume-series')
-      .attr('clip-path', 'url(#clip)');
-
     const yVolumeScale = d3
       .scaleLinear()
       .domain([yMinVolume, yMaxVolume])
@@ -725,12 +731,6 @@ class HistoricalPriceChart {
 
   renderDividendIndicators() {
     /* Updating of dividends */
-    // group dividend symbols, and with clip-path attribute
-    d3.select('#chart')
-      .select('g')
-      .append('g')
-      .attr('id', 'dividends')
-      .attr('clip-path', 'url(#clip)');
 
     // select all dividend groups, and bind the new data
     const dividendSelect = d3
