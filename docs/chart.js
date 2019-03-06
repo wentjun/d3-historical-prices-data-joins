@@ -90,7 +90,7 @@ class HistoricalPriceChart {
     });
   }
 
-  movingAverage(data, numberOfPricePoints) {
+  calculateMovingAverage(data, numberOfPricePoints) {
     return data.map((row, index, total) => {
       const start = Math.max(0, index - numberOfPricePoints);
       //const end = index + numberOfPricePoints;
@@ -107,19 +107,53 @@ class HistoricalPriceChart {
     });
   }
 
+  calculateBollingerBands(data, numberOfPricePoints) {
+    let sumSquaredDifference = 0;
+    return data.map((row, index, total) => {
+      const start = Math.max(0, index - numberOfPricePoints);
+      const end = index;
+      const subset = total.slice(start, end + 1);
+      const sum = subset.reduce((a, b) => {
+        return a + b['close'];
+      }, 0);
+
+      const sumSquaredDifference = subset.reduce((a, b) => {
+        const average = sum / subset.length;
+        const dfferenceFromMean = b['close'] - average;
+        const squaredDifferenceFromMean = Math.pow(dfferenceFromMean, 2);
+        return a + squaredDifferenceFromMean;
+      }, 0);
+      const variance = sumSquaredDifference / subset.length;
+
+      return {
+        date: row['date'],
+        average: sum / subset.length,
+        standardDeviation: Math.sqrt(variance),
+        upperBand: sum / subset.length + Math.sqrt(variance) * 2,
+        lowerBand: sum / subset.length - Math.sqrt(variance) * 2
+      };
+    });
+  }
+
   initialiseChart(data) {
     const thisYearStartDate = new Date(2018, 4, 31);
     const nextYearStartDate = new Date(2019, 0, 1);
+    // remove invalid data points
+    const validData = data['quote'].filter(
+      row => row['high'] && row['low'] && row['close'] && row['open']
+    );
     // filter out data based on time period
-    this.currentData = data['quote']
-      .filter(row => row['high'] && row['low'] && row['close'] && row['open'])
-      .filter(row => {
-        if (row['date']) {
-          return (
-            row['date'] >= thisYearStartDate && row['date'] < nextYearStartDate
-          );
-        }
-      });
+    this.currentData = validData.filter(row => {
+      if (row['date']) {
+        return (
+          row['date'] >= thisYearStartDate && row['date'] < nextYearStartDate
+        );
+      }
+    });
+    // calculates simple moving average over 50 days
+    this.movingAverageData = this.calculateMovingAverage(validData, 49);
+    // calculates simple moving average, and standard deviation over 20 days
+    this.bollingerBandsData = this.calculateBollingerBands(validData, 19);
 
     const viewportWidth = Math.max(
       document.documentElement.clientWidth,
@@ -237,6 +271,19 @@ class HistoricalPriceChart {
       .append('g')
       .attr('id', 'dividends')
       .attr('clip-path', 'url(#clip)');
+
+    // candlesticks, and with clip-path attribute
+    svg
+      .append('g')
+      .attr('id', 'candlesticks-series')
+      .attr('clip-path', 'url(#clip)');
+
+    // ohlc, and with clip-path attribute
+    svg
+      .append('g')
+      .attr('id', 'ohlc-series')
+      .attr('clip-path', 'url(#clip)');
+
     // generates the rest of the graph
     this.updateChart();
 
@@ -329,13 +376,13 @@ class HistoricalPriceChart {
       });
 
       // update candlesticks series based on zoom/pan
-      d3.selectAll('.candlesticks .high-low').attr('d', d => {
+      d3.selectAll('.candlestick .high-low').attr('d', d => {
         return candlesticksLine([
           { x: updatedXScale(d['date']), y: updatedYScale(d['high']) },
           { x: updatedXScale(d['date']), y: updatedYScale(d['low']) }
         ]);
       });
-      d3.selectAll('.candlesticks rect')
+      d3.selectAll('.candlestick rect')
         .attr('x', d => updatedXScale(d['date']) - bodyWidth / 2)
         .attr('y', d => {
           return d['close'] > d['open']
@@ -430,16 +477,22 @@ class HistoricalPriceChart {
     this.loadData(event.target.value).then(response => {
       const thisYearStartDate = new Date(2018, 4, 31);
       const nextYearStartDate = new Date(2019, 0, 1);
-      this.currentData = response['quote']
-        .filter(row => row['high'] && row['low'] && row['close'] && row['open'])
-        .filter(row => {
-          if (row['date']) {
-            return (
-              row['date'] >= thisYearStartDate &&
-              row['date'] < nextYearStartDate
-            );
-          }
-        });
+      // remove invalid data points
+      const validData = response['quote'].filter(
+        row => row['high'] && row['low'] && row['close'] && row['open']
+      );
+
+      this.currentData = validData.filter(row => {
+        if (row['date']) {
+          return (
+            row['date'] >= thisYearStartDate && row['date'] < nextYearStartDate
+          );
+        }
+      });
+
+      this.movingAverageData = this.calculateMovingAverage(validData, 49);
+
+      this.bollingerBandsData = this.calculateBollingerBands(validData, 19);
 
       const viewportWidth = Math.max(
         document.documentElement.clientWidth,
@@ -598,6 +651,7 @@ class HistoricalPriceChart {
 
   updateSecondaryLegends(currentDate) {
     const secondaryLegend = {};
+
     if (this.movingAverageData) {
       const currentPoint = this.movingAverageData.filter(
         dataPoint => dataPoint['date'] === currentDate
@@ -858,8 +912,6 @@ class HistoricalPriceChart {
           .duration(750)
           .call(this.zoom.transform, d3.zoomIdentity.scale(1));
       }
-      // calculates simple moving average over 50 days
-      this.movingAverageData = this.movingAverage(this.currentData, 49);
 
       const movingAverageLine = d3
         .line()
@@ -890,7 +942,6 @@ class HistoricalPriceChart {
             .attr('d', movingAverageLine)
       );
     } else {
-      this.movingAverageData = undefined;
       // Remove moving average line
       d3.select('.moving-average-line').remove();
     }
@@ -910,8 +961,7 @@ class HistoricalPriceChart {
         .y(d => d['y']);
 
       const ohlcSelection = d3
-        .select('#chart')
-        .select('g')
+        .select('#ohlc-series')
         .selectAll('.ohlc')
         .data(this.currentData, d => d['volume']);
 
@@ -919,7 +969,6 @@ class HistoricalPriceChart {
         const ohlcEnter = enter
           .append('g')
           .attr('class', 'ohlc')
-          .attr('clip-path', 'url(#clip)')
           .append('g')
           .attr('class', 'bars')
           .classed('up-day', d => d['close'] > d['open'])
@@ -981,16 +1030,14 @@ class HistoricalPriceChart {
         .y(d => d['y']);
 
       const candlesticksSelection = d3
-        .select('#chart')
-        .select('g')
-        .selectAll('.candlesticks')
+        .select('#candlesticks-series')
+        .selectAll('.candlestick')
         .data(this.currentData, d => d['volume']);
 
       candlesticksSelection.join(enter => {
         const candlesticksEnter = enter
           .append('g')
-          .attr('class', 'candlesticks')
-          .attr('clip-path', 'url(#clip)')
+          .attr('class', 'candlestick')
           .append('g')
           .attr('class', 'bars')
           .classed('up-day', d => d['close'] > d['open'])
@@ -1023,7 +1070,7 @@ class HistoricalPriceChart {
       // remove candlesticks
       d3.select('#chart')
         .select('g')
-        .selectAll('.candlesticks')
+        .selectAll('.candlestick')
         .remove();
     }
   }
@@ -1034,36 +1081,6 @@ class HistoricalPriceChart {
         .transition()
         .duration(750)
         .call(this.zoom.transform, d3.zoomIdentity.scale(1));
-
-      const standardDeviation = (data, numberOfPricePoints) => {
-        let sumSquaredDifference = 0;
-        return data.map((row, index, total) => {
-          const start = Math.max(0, index - numberOfPricePoints);
-          const end = index;
-          const subset = total.slice(start, end + 1);
-          const sum = subset.reduce((a, b) => {
-            return a + b['close'];
-          }, 0);
-
-          const sumSquaredDifference = subset.reduce((a, b) => {
-            const average = sum / subset.length;
-            const dfferenceFromMean = b['close'] - average;
-            const squaredDifferenceFromMean = Math.pow(dfferenceFromMean, 2);
-            return a + squaredDifferenceFromMean;
-          }, 0);
-          const variance = sumSquaredDifference / subset.length;
-
-          return {
-            date: row['date'],
-            average: sum / subset.length,
-            standardDeviation: Math.sqrt(variance),
-            upperBand: sum / subset.length + Math.sqrt(variance) * 2,
-            lowerBand: sum / subset.length - Math.sqrt(variance) * 2
-          };
-        });
-      };
-      // calculates simple moving average, and standard deviation over 20 days
-      this.bollingerBandsData = standardDeviation(this.currentData, 19);
 
       const movingAverage = d3
         .line()
@@ -1186,8 +1203,7 @@ class HistoricalPriceChart {
             .attr('d', area)
       );
     } else {
-      this.bollingerBandsData = undefined;
-      // remove candlesticks
+      // remove bollinger bands
       d3.select('#chart')
         .select('g')
         .selectAll('.middle-band, .lower-band, .upper-band, .band-area')
