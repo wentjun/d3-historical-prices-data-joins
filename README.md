@@ -6,7 +6,9 @@
 
 2.  `http-server docs`
 
-References:
-<a href="https://github.com/wentjun/d3-historical-prices">Main repository</a>
+I have written an article on D3.js's data joins, general update pattern, and selection.join(). It is based on this project. Do check it out over <a href="https://medium.freecodecamp.org/how-to-work-with-d3-jss-general-update-pattern-8adce8d55418" target="_blank">here</a> if you are keen!
 
-This repository is an extension of a <a href="https://medium.freecodecamp.org/how-to-build-historical-price-charts-with-d3-js-72214aaf6ba3" target="_blank">previous project</a>.
+References:
+<a href="https://github.com/wentjun/d3-historical-prices" target="_blank">Main repository</a>
+
+This repository is an extension of a <a href="https://github.com/wentjun/d3-historical-price-chart-basic" target="_blank">previous project</a>.
